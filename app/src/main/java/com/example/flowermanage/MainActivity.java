@@ -7,11 +7,13 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContract;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
 
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
 import android.provider.MediaStore;
 import android.util.Base64;
 import android.util.Log;
@@ -25,11 +27,16 @@ import org.json.JSONObject;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.ObjectInputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
+import java.net.Socket;
 import java.net.URL;
 
 public class MainActivity extends AppCompatActivity {
@@ -40,6 +47,50 @@ public class MainActivity extends AppCompatActivity {
     Bitmap bitmap;
     Uri uri;
 
+    Socket socket;
+    DataOutputStream dos;
+    String ip = "1.239.247.66";
+    int port = 8088;
+
+    void connect(){
+        Thread sendImg_getText = new Thread(() -> {
+            ByteArrayOutputStream byteArray = new ByteArrayOutputStream();
+            bitmap.compress(Bitmap.CompressFormat.PNG,100,byteArray);
+            byte[] bytes = byteArray.toByteArray();
+
+            try{
+                socket = new Socket(ip,port);
+
+                dos = new DataOutputStream(socket.getOutputStream());
+
+                dos.writeUTF(Integer.toString(bytes.length));
+                dos.flush();
+
+                dos.write(bytes);
+                dos.flush();
+
+                socket.close();
+            }catch (Exception e){
+                Log.d("testTCP",e.toString());
+            }
+        });
+        try {
+            sendImg_getText.start();
+            sendImg_getText.join();
+        }catch (Exception e){
+            Log.d("testTCP",e.toString());
+        }
+        Intent intent = new Intent(this, MainActivity.class);
+        startActivity(intent);
+        ActivityCompat.finishAffinity(this);
+    }
+    String readString(DataInputStream dis) throws IOException{
+        int length = dis.readInt();
+        byte[] data = new byte[length];
+        dis.readFully(data,0,length);
+        String text = Base64.encodeToString(data, Base64.DEFAULT);
+        return text;
+    }
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -74,14 +125,8 @@ public class MainActivity extends AppCompatActivity {
                         Bundle extras = result.getData().getExtras();
                         bitmap = (Bitmap) extras.get("data");
                         test_view.setImageBitmap(bitmap);
-                        new Thread(() -> {
-                            try {
-                                    httpRequest();
-                            } catch (Exception e) {
-                                e.printStackTrace();
-                                Log.d("testAPI",e.toString());
-                            }
-                        }).start();
+                        //runRequest();
+                        connect();
                     }
                 }
             }
@@ -96,14 +141,8 @@ public class MainActivity extends AppCompatActivity {
                         try {
                             bitmap = MediaStore.Images.Media.getBitmap(getContentResolver(), uri);
                             test_view.setImageBitmap(bitmap);
-                            new Thread(() -> {
-                                try {
-                                    httpRequest();
-                                } catch (Exception e) {
-                                    e.printStackTrace();
-                                    Log.d("testAPI",e.toString());
-                                }
-                            }).start();
+                            //runRequest();
+                            connect();
                         }catch ( Exception e ){
                             e.printStackTrace();
                         }
@@ -111,6 +150,16 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
     );
+    void  runRequest() {
+        new Thread(() -> {
+            try {
+                httpRequest();
+            } catch (Exception e) {
+                e.printStackTrace();
+                Log.d("testAPI",e.toString());
+            }
+        }).start();
+    }
     void httpRequest() throws Exception {
         String apiKey = "bW7pPK5klYtfb1OYpdyZN1hgCPl59I8C2rAOl4x5nKUwHM9rHE";
 
@@ -194,5 +243,10 @@ public class MainActivity extends AppCompatActivity {
 
         //return response;
         return "";
+    }
+    @Override
+    protected void onDestroy() {
+        ActivityCompat.finishAffinity(this);
+        super.onDestroy();
     }
 }
