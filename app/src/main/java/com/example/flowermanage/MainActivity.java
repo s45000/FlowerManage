@@ -8,11 +8,18 @@ import androidx.activity.result.contract.ActivityResultContract;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
+import androidx.core.content.FileProvider;
 
+import android.Manifest;
 import android.content.Intent;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Matrix;
+import android.media.ExifInterface;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.provider.MediaStore;
 import android.util.Base64;
@@ -29,6 +36,7 @@ import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -38,6 +46,9 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.Socket;
 import java.net.URL;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -51,6 +62,8 @@ public class MainActivity extends AppCompatActivity {
     DataOutputStream dos;
     String ip = "1.239.247.66";
     int port = 8088;
+
+    String currentImagePath = null;
 
     void connect(){
         Thread sendImg_getText = new Thread(() -> {
@@ -80,16 +93,6 @@ public class MainActivity extends AppCompatActivity {
         }catch (Exception e){
             Log.d("testTCP",e.toString());
         }
-        Intent intent = new Intent(this, MainActivity.class);
-        startActivity(intent);
-        ActivityCompat.finishAffinity(this);
-    }
-    String readString(DataInputStream dis) throws IOException{
-        int length = dis.readInt();
-        byte[] data = new byte[length];
-        dis.readFully(data,0,length);
-        String text = Base64.encodeToString(data, Base64.DEFAULT);
-        return text;
     }
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -103,8 +106,23 @@ public class MainActivity extends AppCompatActivity {
         take_button.setOnClickListener(new Button.OnClickListener() {
             @Override
             public void onClick(View view) {
-                Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-                activityResultPicture.launch(intent);
+                Intent cameraIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+
+                if(cameraIntent.resolveActivity(getPackageManager()) != null){
+                    File imageFile = null;
+
+                    try{
+                        imageFile = getImageFile();
+                    }catch (Exception e){
+                        Log.d("testMod",e.toString());
+                    }
+
+                    if(imageFile != null){
+                        Uri imageUri = FileProvider.getUriForFile(MainActivity.this,"com.example.flowermanage.fileprovider",imageFile);
+                        cameraIntent.putExtra(MediaStore.EXTRA_OUTPUT,imageUri);
+                        activityResultPicture.launch(cameraIntent);
+                    }
+                }
             }
         });
         upload_button.setOnClickListener(new Button.OnClickListener() {
@@ -116,14 +134,60 @@ public class MainActivity extends AppCompatActivity {
             }
         });
     }
+    public static Bitmap rotateImage(Bitmap source, float angle) {
+        Matrix matrix = new Matrix();
+        matrix.postRotate(angle);
+        return Bitmap.createBitmap(source, 0, 0, source.getWidth(), source.getHeight(),
+                matrix, true);
+    }
+    File getImageFile() throws IOException{
+        String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
+        String imageName = "img_"+timestamp+"_";
+        File storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
+
+        File imageFile = File.createTempFile(imageName,".jpg",storageDir);
+        currentImagePath = imageFile.getAbsolutePath();
+        return imageFile;
+    }
     ActivityResultLauncher<Intent> activityResultPicture = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
             new ActivityResultCallback<ActivityResult>() {
                 @Override
                 public void onActivityResult(ActivityResult result) {
-                    if (result.getResultCode() == RESULT_OK && result.getData() != null) {
-                        Bundle extras = result.getData().getExtras();
-                        bitmap = (Bitmap) extras.get("data");
+                    Log.d("testMod",result.getResultCode()+"");
+                    Log.d("testMod",result.getData()+"");
+                    //if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                    if(true){
+                        bitmap = BitmapFactory.decodeFile(currentImagePath);
+                        Log.d("Log", "setImage : " + currentImagePath);
+                        ExifInterface ei = null;
+                        try {
+                            ei = new ExifInterface(currentImagePath);
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                        int orientation = ei.getAttributeInt(ExifInterface.TAG_ORIENTATION,
+                                ExifInterface.ORIENTATION_UNDEFINED);
+
+                        switch(orientation) {
+
+                            case ExifInterface.ORIENTATION_ROTATE_90:
+                                bitmap = rotateImage(bitmap, 90);
+                                break;
+
+                            case ExifInterface.ORIENTATION_ROTATE_180:
+                                bitmap = rotateImage(bitmap, 180);
+                                break;
+
+                            case ExifInterface.ORIENTATION_ROTATE_270:
+                                bitmap = rotateImage(bitmap, 270);
+                                break;
+
+                            case ExifInterface.ORIENTATION_NORMAL:
+                            default:
+                                bitmap = bitmap;
+                        }
+
                         test_view.setImageBitmap(bitmap);
                         //runRequest();
                         connect();
@@ -227,7 +291,6 @@ public class MainActivity extends AppCompatActivity {
             response.append('\r');
         }
         rd.close();
-        //String response = new String(is.readAllBytes());
 
         Log.d("testAPI","test");
         Log.d("testAPI","Response code : " + con.getResponseCode());
@@ -236,9 +299,7 @@ public class MainActivity extends AppCompatActivity {
 
         //String response = "{\"id\": 57994756, \"custom_id\": null, \"meta_data\": {\"latitude\": null, \"longitude\": null, \"date\": \"2022-08-12\", \"datetime\": \"2022-08-12\"}, \"uploaded_datetime\": 1660290841.155482, \"finished_datetime\": 1660290841.6483, \"images\": [{\"file_name\": \"2be315486c78438dadd9c73ef57d0a48.jpg\", \"url\": \"https://plant.id/media/images/2be315486c78438dadd9c73ef57d0a48.jpg\"}], \"suggestions\": [{\"id\": 335650777, \"plant_name\": \"Tulipa\", \"plant_details\": {\"common_names\": [\"Tulip\"], \"url\": \"https://en.wikipedia.org/wiki/Tulipa\", \"name_authority\": \"Tulipa L.\", \"wiki_description\": {\"value\": \"Tulips (Tulipa) form a genus of spring-blooming perennial herbaceous bulbiferous geophytes (having bulbs as storage organs). The flowers are usually large, showy and brightly colored, generally red, pink, yellow, or white (usually in warm colors). They often have a different colored blotch at the base of the tepals (petals and sepals, collectively), internally. Because of a degree of variability within the populations, and a long history of cultivation, classification has been complex and controversial. The tulip is a member of the lily family, Liliaceae, along with 14 other genera, where it is most closely related to Amana, Erythronium and Gagea in the tribe Lilieae. There are about 75 species, and these are divided among four subgenera. The name \"tulip\" is thought to be derived from a Persian word for turban, which it may have been thought to resemble. Tulips originally were found in a band stretching from Southern Europe to Central Asia, but since the seventeenth century have become widely naturalised and cultivated (see map). In their natural state they are adapted to steppes and mountainous areas with temperate climates. Flowering in the spring, they become dormant in the summer once the flowers and leaves die back, emerging above ground as a shoot from the underground bulb in early spring.\nOriginally growing wild in the valleys of the Tian Shan Mountains, tulips were cultivated in Constantinople as early as 1055. By the 15th century, tulips were among the most prized flowers; becoming the symbol of the Ottomans. While tulips had probably been cultivated in Persia from the tenth century, they did not come to the attention of the West until the sixteenth century, when Western diplomats to the Ottoman court observed and reported on them. They were rapidly introduced into Europe and became a frenzied commodity during Tulip mania. Tulips were frequently depicted in Dutch Golden Age paintings, and have become associated with the Netherlands, the major producer for world markets, ever since. In the seventeenth century Netherlands, during the time of the Tulip mania, an infection of tulip bulbs by the tulip breaking virus created variegated patterns in the tulip flowers that were much admired and valued. While truly broken tulips do not exist anymore, the closest available specimens today are part of the group known as the Rembrandts \u2013 so named because Rembrandt painted some of the most admired breaks of his time.\nBreeding programs have produced thousands of hybrid and cultivars in addition to the original species (known in horticulture as botanical tulips). They are popular throughout the world, both as ornamental garden plants and as cut flowers.\", \"citation\": \"https://en.wikipedia.org/wiki/Tulipa\", \"license_name\": \"CC BY-SA 3.0\", \"license_url\": \"https://creativecommons.org/licenses/by-sa/3.0/\"}, \"taxonomy\": {\"class\": \"Magnoliopsida\", \"family\": \"Liliaceae\", \"genus\": \"Tulipa\", \"kingdom\": \"Plantae\", \"order\": \"Liliales\", \"phylum\": \"Magnoliophyta\"}, \"synonyms\": [\"Eduardoregelia\", \"Liriactis\", \"Liriopogon\", \"Orithyia\", \"Podonix\"], \"language\": \"en\", \"scientific_name\": \"Tulipa\", \"structured_name\": {\"genus\": \"tulipa\"}}, \"probability\": 0.39336888522562025, \"confirmed\": false, \"similar_images\": [{\"id\": \"d61f42e90d6031e5ec645372d1353efd\", \"similarity\": 10.480458771380238, \"url\": \"https://plant-id.ams3.cdn.digitaloceanspaces.com/similar_images/images/d61/f42e90d6031e5ec645372d1353efd.jpg\"}";
         Intent intent = new Intent(this, HttpActivity.class);
-        //입력한 input값을 intent로 전달한다.
         intent.putExtra("text", response.toString());
-        //액티비티 이동
         startActivity(intent);
 
         //return response;
