@@ -62,18 +62,20 @@ public class MainActivity extends AppCompatActivity {
     Bitmap bitmap;
     Uri uri;
 
-    Thread sendImg_getText = null;
+    Thread sendToServer = null;
     Socket socket;
     DataOutputStream dos;
     String ip = "1.239.247.66";
     int port = 8088;
 
+    Thread sendToApi = null;
+    StringBuffer apiResponse;
     String currentImagePath = null;
 
     ProgressDialog progressDialog = null;
     Handler endHandler = null;
     void connect(){
-        sendImg_getText = new Thread(() -> {
+        sendToServer = new Thread(() -> {
             ByteArrayOutputStream byteArray = new ByteArrayOutputStream();
             bitmap.compress(Bitmap.CompressFormat.PNG,100,byteArray);
             byte[] bytes = byteArray.toByteArray();
@@ -95,7 +97,7 @@ public class MainActivity extends AppCompatActivity {
             }
             endHandler.sendMessage(endHandler.obtainMessage());
         });
-        sendImg_getText.start();
+        sendToServer.start();
     }
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -113,13 +115,17 @@ public class MainActivity extends AppCompatActivity {
                 boolean retry = true;
                 while(retry) {
                     try {
-                        sendImg_getText.join();
+                        //sendToServer.join();
+                        sendToApi.join();
                         retry = false;
                     } catch (Exception e) {
                         Log.d("testTCP", e.toString());
                     }
                 }
                 progressDialog.dismiss();
+                Intent intent = new Intent(getApplicationContext(), HttpActivity.class);
+                intent.putExtra("text", apiResponse.toString());
+                startActivity(intent);
             }
         };
         test_view = (ImageView) findViewById(R.id.test_view);
@@ -213,8 +219,8 @@ public class MainActivity extends AppCompatActivity {
 
                         test_view.setImageBitmap(bitmap);
                         progressDialog.show();
-                        //runRequest();
-                        connect();
+                        runRequest();
+                        //connect();
                     }
                 }
             }
@@ -230,8 +236,8 @@ public class MainActivity extends AppCompatActivity {
                             bitmap = MediaStore.Images.Media.getBitmap(getContentResolver(), uri);
                             test_view.setImageBitmap(bitmap);
                             progressDialog.show();
-                            //runRequest();
-                            connect();
+                            runRequest();
+                            //connect();
                         }catch ( Exception e ){
                             e.printStackTrace();
                         }
@@ -240,14 +246,16 @@ public class MainActivity extends AppCompatActivity {
             }
     );
     void  runRequest() {
-        new Thread(() -> {
+        sendToApi = new Thread(() -> {
             try {
                 httpRequest();
             } catch (Exception e) {
                 e.printStackTrace();
                 Log.d("testAPI",e.toString());
             }
-        }).start();
+            endHandler.sendMessage(endHandler.obtainMessage());
+        });
+        sendToApi.start();
     }
     void httpRequest() throws Exception {
         String apiKey = "bW7pPK5klYtfb1OYpdyZN1hgCPl59I8C2rAOl4x5nKUwHM9rHE";
@@ -310,24 +318,21 @@ public class MainActivity extends AppCompatActivity {
         InputStream is = con.getInputStream();
         BufferedReader rd = new BufferedReader(new InputStreamReader(is));
         String line;
-        StringBuffer response = new StringBuffer();
+        apiResponse = new StringBuffer();
         while((line = rd.readLine()) != null) {
-            response.append(line);
-            response.append('\r');
+            apiResponse.append(line);
+            apiResponse.append('\r');
         }
         rd.close();
 
         Log.d("testAPI","test");
         Log.d("testAPI","Response code : " + con.getResponseCode());
-        Log.d("testAPI","Response : " + response);
+        Log.d("testAPI","Response : " + apiResponse);
         con.disconnect();
 
-        //String response = "{\"id\": 57994756, \"custom_id\": null, \"meta_data\": {\"latitude\": null, \"longitude\": null, \"date\": \"2022-08-12\", \"datetime\": \"2022-08-12\"}, \"uploaded_datetime\": 1660290841.155482, \"finished_datetime\": 1660290841.6483, \"images\": [{\"file_name\": \"2be315486c78438dadd9c73ef57d0a48.jpg\", \"url\": \"https://plant.id/media/images/2be315486c78438dadd9c73ef57d0a48.jpg\"}], \"suggestions\": [{\"id\": 335650777, \"plant_name\": \"Tulipa\", \"plant_details\": {\"common_names\": [\"Tulip\"], \"url\": \"https://en.wikipedia.org/wiki/Tulipa\", \"name_authority\": \"Tulipa L.\", \"wiki_description\": {\"value\": \"Tulips (Tulipa) form a genus of spring-blooming perennial herbaceous bulbiferous geophytes (having bulbs as storage organs). The flowers are usually large, showy and brightly colored, generally red, pink, yellow, or white (usually in warm colors). They often have a different colored blotch at the base of the tepals (petals and sepals, collectively), internally. Because of a degree of variability within the populations, and a long history of cultivation, classification has been complex and controversial. The tulip is a member of the lily family, Liliaceae, along with 14 other genera, where it is most closely related to Amana, Erythronium and Gagea in the tribe Lilieae. There are about 75 species, and these are divided among four subgenera. The name \"tulip\" is thought to be derived from a Persian word for turban, which it may have been thought to resemble. Tulips originally were found in a band stretching from Southern Europe to Central Asia, but since the seventeenth century have become widely naturalised and cultivated (see map). In their natural state they are adapted to steppes and mountainous areas with temperate climates. Flowering in the spring, they become dormant in the summer once the flowers and leaves die back, emerging above ground as a shoot from the underground bulb in early spring.\nOriginally growing wild in the valleys of the Tian Shan Mountains, tulips were cultivated in Constantinople as early as 1055. By the 15th century, tulips were among the most prized flowers; becoming the symbol of the Ottomans. While tulips had probably been cultivated in Persia from the tenth century, they did not come to the attention of the West until the sixteenth century, when Western diplomats to the Ottoman court observed and reported on them. They were rapidly introduced into Europe and became a frenzied commodity during Tulip mania. Tulips were frequently depicted in Dutch Golden Age paintings, and have become associated with the Netherlands, the major producer for world markets, ever since. In the seventeenth century Netherlands, during the time of the Tulip mania, an infection of tulip bulbs by the tulip breaking virus created variegated patterns in the tulip flowers that were much admired and valued. While truly broken tulips do not exist anymore, the closest available specimens today are part of the group known as the Rembrandts \u2013 so named because Rembrandt painted some of the most admired breaks of his time.\nBreeding programs have produced thousands of hybrid and cultivars in addition to the original species (known in horticulture as botanical tulips). They are popular throughout the world, both as ornamental garden plants and as cut flowers.\", \"citation\": \"https://en.wikipedia.org/wiki/Tulipa\", \"license_name\": \"CC BY-SA 3.0\", \"license_url\": \"https://creativecommons.org/licenses/by-sa/3.0/\"}, \"taxonomy\": {\"class\": \"Magnoliopsida\", \"family\": \"Liliaceae\", \"genus\": \"Tulipa\", \"kingdom\": \"Plantae\", \"order\": \"Liliales\", \"phylum\": \"Magnoliophyta\"}, \"synonyms\": [\"Eduardoregelia\", \"Liriactis\", \"Liriopogon\", \"Orithyia\", \"Podonix\"], \"language\": \"en\", \"scientific_name\": \"Tulipa\", \"structured_name\": {\"genus\": \"tulipa\"}}, \"probability\": 0.39336888522562025, \"confirmed\": false, \"similar_images\": [{\"id\": \"d61f42e90d6031e5ec645372d1353efd\", \"similarity\": 10.480458771380238, \"url\": \"https://plant-id.ams3.cdn.digitaloceanspaces.com/similar_images/images/d61/f42e90d6031e5ec645372d1353efd.jpg\"}";
-        Intent intent = new Intent(this, HttpActivity.class);
-        intent.putExtra("text", response.toString());
-        startActivity(intent);
+        //String apiResponse = "{\"id\": 57994756, \"custom_id\": null, \"meta_data\": {\"latitude\": null, \"longitude\": null, \"date\": \"2022-08-12\", \"datetime\": \"2022-08-12\"}, \"uploaded_datetime\": 1660290841.155482, \"finished_datetime\": 1660290841.6483, \"images\": [{\"file_name\": \"2be315486c78438dadd9c73ef57d0a48.jpg\", \"url\": \"https://plant.id/media/images/2be315486c78438dadd9c73ef57d0a48.jpg\"}], \"suggestions\": [{\"id\": 335650777, \"plant_name\": \"Tulipa\", \"plant_details\": {\"common_names\": [\"Tulip\"], \"url\": \"https://en.wikipedia.org/wiki/Tulipa\", \"name_authority\": \"Tulipa L.\", \"wiki_description\": {\"value\": \"Tulips (Tulipa) form a genus of spring-blooming perennial herbaceous bulbiferous geophytes (having bulbs as storage organs). The flowers are usually large, showy and brightly colored, generally red, pink, yellow, or white (usually in warm colors). They often have a different colored blotch at the base of the tepals (petals and sepals, collectively), internally. Because of a degree of variability within the populations, and a long history of cultivation, classification has been complex and controversial. The tulip is a member of the lily family, Liliaceae, along with 14 other genera, where it is most closely related to Amana, Erythronium and Gagea in the tribe Lilieae. There are about 75 species, and these are divided among four subgenera. The name \"tulip\" is thought to be derived from a Persian word for turban, which it may have been thought to resemble. Tulips originally were found in a band stretching from Southern Europe to Central Asia, but since the seventeenth century have become widely naturalised and cultivated (see map). In their natural state they are adapted to steppes and mountainous areas with temperate climates. Flowering in the spring, they become dormant in the summer once the flowers and leaves die back, emerging above ground as a shoot from the underground bulb in early spring.\nOriginally growing wild in the valleys of the Tian Shan Mountains, tulips were cultivated in Constantinople as early as 1055. By the 15th century, tulips were among the most prized flowers; becoming the symbol of the Ottomans. While tulips had probably been cultivated in Persia from the tenth century, they did not come to the attention of the West until the sixteenth century, when Western diplomats to the Ottoman court observed and reported on them. They were rapidly introduced into Europe and became a frenzied commodity during Tulip mania. Tulips were frequently depicted in Dutch Golden Age paintings, and have become associated with the Netherlands, the major producer for world markets, ever since. In the seventeenth century Netherlands, during the time of the Tulip mania, an infection of tulip bulbs by the tulip breaking virus created variegated patterns in the tulip flowers that were much admired and valued. While truly broken tulips do not exist anymore, the closest available specimens today are part of the group known as the Rembrandts \u2013 so named because Rembrandt painted some of the most admired breaks of his time.\nBreeding programs have produced thousands of hybrid and cultivars in addition to the original species (known in horticulture as botanical tulips). They are popular throughout the world, both as ornamental garden plants and as cut flowers.\", \"citation\": \"https://en.wikipedia.org/wiki/Tulipa\", \"license_name\": \"CC BY-SA 3.0\", \"license_url\": \"https://creativecommons.org/licenses/by-sa/3.0/\"}, \"taxonomy\": {\"class\": \"Magnoliopsida\", \"family\": \"Liliaceae\", \"genus\": \"Tulipa\", \"kingdom\": \"Plantae\", \"order\": \"Liliales\", \"phylum\": \"Magnoliophyta\"}, \"synonyms\": [\"Eduardoregelia\", \"Liriactis\", \"Liriopogon\", \"Orithyia\", \"Podonix\"], \"language\": \"en\", \"scientific_name\": \"Tulipa\", \"structured_name\": {\"genus\": \"tulipa\"}}, \"probability\": 0.39336888522562025, \"confirmed\": false, \"similar_images\": [{\"id\": \"d61f42e90d6031e5ec645372d1353efd\", \"similarity\": 10.480458771380238, \"url\": \"https://plant-id.ams3.cdn.digitaloceanspaces.com/similar_images/images/d61/f42e90d6031e5ec645372d1353efd.jpg\"}";
 
-        //return response;
+        //return apiResponse;
         return "";
     }
     @Override
