@@ -6,6 +6,7 @@ import androidx.activity.result.ActivityResultCaller;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContract;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.FileProvider;
@@ -14,13 +15,16 @@ import android.Manifest;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Color;
 import android.graphics.Matrix;
+import android.graphics.drawable.ColorDrawable;
 import android.media.ExifInterface;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
+import android.os.Message;
 import android.provider.MediaStore;
 import android.util.Base64;
 import android.util.Log;
@@ -58,6 +62,7 @@ public class MainActivity extends AppCompatActivity {
     Bitmap bitmap;
     Uri uri;
 
+    Thread sendImg_getText = null;
     Socket socket;
     DataOutputStream dos;
     String ip = "1.239.247.66";
@@ -65,8 +70,10 @@ public class MainActivity extends AppCompatActivity {
 
     String currentImagePath = null;
 
+    ProgressDialog progressDialog = null;
+    Handler endHandler = null;
     void connect(){
-        Thread sendImg_getText = new Thread(() -> {
+        sendImg_getText = new Thread(() -> {
             ByteArrayOutputStream byteArray = new ByteArrayOutputStream();
             bitmap.compress(Bitmap.CompressFormat.PNG,100,byteArray);
             byte[] bytes = byteArray.toByteArray();
@@ -86,19 +93,35 @@ public class MainActivity extends AppCompatActivity {
             }catch (Exception e){
                 Log.d("testTCP",e.toString());
             }
+            endHandler.sendMessage(endHandler.obtainMessage());
         });
-        try {
-            sendImg_getText.start();
-            sendImg_getText.join();
-        }catch (Exception e){
-            Log.d("testTCP",e.toString());
-        }
+        sendImg_getText.start();
     }
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        progressDialog = new ProgressDialog(this);
+        progressDialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        progressDialog.setCancelable(false);
+
+        endHandler = new Handler(){
+            @Override
+            public void handleMessage(@NonNull Message msg) {
+
+                boolean retry = true;
+                while(retry) {
+                    try {
+                        sendImg_getText.join();
+                        retry = false;
+                    } catch (Exception e) {
+                        Log.d("testTCP", e.toString());
+                    }
+                }
+                progressDialog.dismiss();
+            }
+        };
         test_view = (ImageView) findViewById(R.id.test_view);
         take_button = (Button) findViewById(R.id.take_picture_button);
         upload_button = (Button) findViewById(R.id.upload_picture_button);
@@ -189,6 +212,7 @@ public class MainActivity extends AppCompatActivity {
                         }
 
                         test_view.setImageBitmap(bitmap);
+                        progressDialog.show();
                         //runRequest();
                         connect();
                     }
@@ -205,6 +229,7 @@ public class MainActivity extends AppCompatActivity {
                         try {
                             bitmap = MediaStore.Images.Media.getBitmap(getContentResolver(), uri);
                             test_view.setImageBitmap(bitmap);
+                            progressDialog.show();
                             //runRequest();
                             connect();
                         }catch ( Exception e ){

@@ -5,13 +5,11 @@
       <map>
         <entry key="..\:/Users/seoju/AndroidStudioProjects/FlowerManage/app/src/main/res/layout/activity_http.xml" value="0.1296875" />
         <entry key="..\:/Users/seoju/AndroidStudioProjects/FlowerManage/app/src/main/res/layout/activity_main.xml" value="0.1793478260869565" />
+        <entry key="..\:/Users/seoju/AndroidStudioProjects/FlowerManage/app/src/main/res/layout/dialog_progress.xml" value="0.12135416666666667" />
         <entry key="..\:/Users/seoju/AndroidStudioProjects/FlowerManage/app/src/main/res/xml/filepaths.xml" value="0.1296875" />
         <entry key="..\:/Users/seoju/AndroidStudioProjects/FlowerManage/app/src/main/res/xml/provider_path.xml" value="0.25364583333333335" />
       </map>
     </option>
-  </component>
-  <component name="ProjectPlainTextFileTypeManager">
-    <file url="file://$PROJECT_DIR$/app/src/main/res/xml/filepaths.xml" />
   </component>
   <component name="ProjectRootManager" version="2" languageLevel="JDK_11" default="true" project-jdk-name="Android Studio default JDK" project-jdk-type="JavaSDK">
     <output url="file://$PROJECT_DIR$/build/classes" />
