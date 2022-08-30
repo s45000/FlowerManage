@@ -6,10 +6,9 @@
     android:layout_height="match_parent"
     tools:context=".HttpActivity">
 
-    <TextView
-        android:id="@+id/result_text"
-        android:scrollbars="vertical"
+    <ListView
+        android:id="@+id/resList"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"/>
+        android:layout_height="match_parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
